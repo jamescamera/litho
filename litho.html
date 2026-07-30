@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#07100F">
+<title>LITHO — a living topographic camera</title>
+<meta name="description" content="A live camera rebuilt as moving contour strata, false elevation and embossed light. Runs entirely in your browser.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Litho — a living topographic camera">
+<meta property="og:description" content="A live camera rebuilt as moving contour strata and false elevation. Nothing leaves your device.">
+<meta property="og:image" content="share.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Litho — a living topographic camera">
+<meta name="twitter:description" content="A live camera rebuilt as moving contour strata and false elevation.">
+<meta name="twitter:image" content="share.png">
+<style>
+  :root{
+    --void:#07100F;
+    --paper:#EEE8D9;
+    --ink:#171814;
+    --soft:#68675E;
+    --clay:#D76243;
+    --mineral:#45C4B1;
+    --sun:#F1D264;
+    --rule:rgba(23,24,20,.22);
+    --glass:rgba(238,232,217,.46);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{width:100%;height:100%;margin:0;overflow:hidden;background:var(--void);}
+  body{font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,"Liberation Mono",monospace;color:var(--ink);-webkit-user-select:none;user-select:none;}
+  #stage{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;background:var(--void);}
+  video{position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none;}
+
+  #hud{position:fixed;z-index:30;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top,0px) + 12px) 15px 12px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;pointer-events:none;text-shadow:0 1px 7px rgba(0,0,0,.82);}
+  #hud .name{margin:0 0 3px;color:#fff;font-size:12px;font-weight:700;letter-spacing:.42em;text-transform:uppercase;}
+  #hud .sub{margin:0;color:rgba(255,255,255,.68);font-size:9px;letter-spacing:.15em;text-transform:uppercase;}
+  #recDot{display:none;align-items:center;gap:7px;flex:none;color:#fff;background:rgba(7,16,15,.58);padding:5px 9px;border:1px solid rgba(255,255,255,.18);border-radius:20px;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);}
+  #recDot.on{display:flex;}
+  #recDot i{width:7px;height:7px;border-radius:50%;background:var(--clay);animation:pulse 1.05s infinite;box-shadow:0 0 12px var(--clay);}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
+
+  #deck{position:fixed;z-index:40;left:0;right:0;bottom:0;padding:0 18px calc(env(safe-area-inset-bottom,0px) + 20px);display:flex;align-items:center;justify-content:space-between;gap:14px;pointer-events:none;}
+  #deck>*{pointer-events:auto;}
+  .tab{min-width:82px;border:1px solid rgba(255,255,255,.28);padding:11px 13px;cursor:pointer;background:rgba(7,16,15,.43);color:#fff;box-shadow:0 6px 22px rgba(0,0,0,.36);-webkit-backdrop-filter:blur(14px) saturate(1.2);backdrop-filter:blur(14px) saturate(1.2);font:inherit;font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;}
+  .tab.on{background:rgba(241,210,100,.9);border-color:rgba(241,210,100,.95);color:#15150F;}
+  #bShot{width:72px;height:72px;flex:none;border-radius:50%;cursor:pointer;padding:0;background:#fff;border:3px solid rgba(7,16,15,.66);box-shadow:0 5px 26px rgba(0,0,0,.56),inset 0 0 0 3px rgba(255,255,255,.94),0 0 24px rgba(255,255,255,.2);transition:transform .1s;}
+  #bShot:active,#bRec:active{transform:scale(.92);}
+  #bRec{width:52px;height:52px;flex:none;border-radius:50%;cursor:pointer;padding:0;position:relative;background:rgba(7,16,15,.46);border:2px solid rgba(255,255,255,.9);transition:transform .1s;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);}
+  #bRec:after{content:"";position:absolute;left:50%;top:50%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;background:var(--clay);box-shadow:0 0 17px rgba(215,98,67,.72);transition:all .18s;}
+  #bRec.on:after{width:17px;height:17px;margin:-8.5px 0 0 -8.5px;border-radius:3px;}
+
+  #scrim{position:fixed;z-index:44;inset:0;background:rgba(0,0,0,.025);opacity:0;visibility:hidden;transition:opacity .2s,visibility .2s;pointer-events:none;}
+  #scrim.on{opacity:1;visibility:visible;}
+  #sheet{position:fixed;z-index:46;left:10px;right:10px;bottom:10px;max-height:41vh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--glass);border:1px solid rgba(255,255,255,.58);border-radius:20px;-webkit-backdrop-filter:blur(9px) saturate(1.18);backdrop-filter:blur(9px) saturate(1.18);padding:23px 16px calc(env(safe-area-inset-bottom,0px) + 16px);transform:translateY(calc(100% + 22px));opacity:.15;transition:transform .31s cubic-bezier(.2,.8,.25,1),opacity .2s;box-shadow:0 14px 46px rgba(0,0,0,.4);}
+  #sheet.on{transform:translateY(0);opacity:1;}
+  #sheet:before{content:"";position:absolute;left:18px;right:18px;top:9px;height:3px;border-radius:3px;background:linear-gradient(90deg,#133F3B,#45C4B1,#F1D264,#D76243,#6B426A,#1A2738);opacity:.9;}
+  #sheet h2{margin:0 0 2px;color:var(--soft);font-size:9.5px;font-weight:400;letter-spacing:.29em;text-transform:uppercase;}
+  #sheet .big{margin:0 0 13px;font-family:Georgia,"Times New Roman",serif;font-size:18px;font-style:italic;font-weight:400;}
+  .field{margin:13px 0 0;flex:1 1 190px;}
+  .field>label{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;color:var(--soft);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;}
+  .field>label b{font-weight:400;color:var(--ink);font-variant-numeric:tabular-nums;}
+  .grid2{display:flex;flex-wrap:wrap;gap:0 18px;}
+  .row{display:flex;gap:5px;flex-wrap:wrap;}
+  .seg{display:flex;border:1px solid var(--rule);border-radius:9px;overflow:hidden;background:rgba(255,255,255,.12);}
+  button.b{font:inherit;font-size:9.1px;letter-spacing:.105em;text-transform:uppercase;background:rgba(255,255,255,.08);color:var(--ink);border:1px solid var(--rule);padding:9px 6px;cursor:pointer;flex:1 1 22%;min-width:0;transition:background .14s,color .14s,border-color .14s;}
+  .seg button{border:0;border-right:1px solid var(--rule);flex:1 1 0;padding:9px 3px;}
+  .seg button:last-child{border-right:0;}
+  button.b.on{background:rgba(23,24,20,.92);border-color:rgba(23,24,20,.92);color:#fff;}
+  button.b:active{background:var(--sun);border-color:var(--sun);color:#111;}
+  button:focus-visible,.tab:focus-visible,#bShot:focus-visible,#bRec:focus-visible{outline:2px solid var(--clay);outline-offset:2px;}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:18px;margin:0;background:transparent;display:block;}
+  input[type=range]::-webkit-slider-runnable-track{height:2px;background:rgba(23,24,20,.26);}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:13px;height:13px;margin-top:-5.5px;border:0;border-radius:50%;background:var(--ink);box-shadow:0 0 0 3px rgba(255,255,255,.4);}
+  input[type=range]::-moz-range-track{height:2px;background:rgba(23,24,20,.26);}
+  input[type=range]::-moz-range-thumb{width:13px;height:13px;border:0;border-radius:50%;background:var(--ink);}
+  .note{margin:15px 0 0;color:var(--soft);font-size:8.8px;letter-spacing:.073em;line-height:1.7;text-transform:uppercase;}
+  .credit{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;margin:16px 0 0;padding-top:13px;border-top:1px solid var(--rule);font-size:9px;letter-spacing:.12em;text-transform:uppercase;}
+  .credit a{color:inherit;text-decoration:none;border-bottom:1px solid currentColor;opacity:.75;}.credit a:hover{opacity:1;}.credit span{opacity:.55;}
+
+  #gate{position:fixed;z-index:60;inset:0;display:flex;align-items:center;justify-content:center;padding:30px;background:#07100F;}
+  #gate .card{position:relative;width:100%;max-width:355px;padding:27px 26px 24px;background:#EEE8D9;overflow:hidden;}
+  #gate .card:before{content:"";position:absolute;inset:0 0 auto 0;height:9px;background:linear-gradient(90deg,#133F3B,#45C4B1,#F1D264,#D76243,#6B426A,#1A2738);}
+  #gate .mark{width:132px;height:132px;margin:0 auto 18px;border-radius:50%;position:relative;background:repeating-radial-gradient(ellipse at 42% 53%,#173A37 0 2px,#EEE8D9 2px 6px,#D76243 6px 8px,#EEE8D9 8px 13px);box-shadow:0 0 0 1px rgba(0,0,0,.14);overflow:hidden;}
+  #gate .mark:before{content:"";position:absolute;inset:18px -28px -20px 34px;border-radius:50%;background:repeating-radial-gradient(ellipse at 48% 42%,transparent 0 3px,rgba(69,196,177,.88) 3px 5px,transparent 5px 10px);transform:rotate(-18deg);}
+  #gate h1{margin:0 0 10px;text-align:center;font-size:15px;font-weight:700;letter-spacing:.46em;text-transform:uppercase;}
+  #gate p{margin:0 0 18px;color:var(--soft);font-size:10px;line-height:1.9;letter-spacing:.085em;text-transform:uppercase;}
+  #gate button{width:100%;flex:none;padding:12px;font-size:10px;border-color:var(--ink);}
+  #err{display:none;margin-top:13px;color:#A33A2E;font-size:10px;line-height:1.7;letter-spacing:.02em;text-transform:none;}
+  #flash{position:fixed;z-index:52;inset:0;background:#fff;opacity:0;pointer-events:none;}
+  #toast{position:fixed;z-index:55;left:50%;bottom:120px;transform:translateX(-50%);max-width:84%;padding:9px 14px;background:rgba(7,16,15,.82);border:1px solid rgba(255,255,255,.18);color:#fff;text-align:center;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;opacity:0;transition:opacity .22s;pointer-events:none;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);}
+  #toast.on{opacity:1;}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}
+  @media (min-width:760px){#sheet{left:auto;right:20px;bottom:20px;width:430px;max-height:calc(100vh - 90px);transform:translateX(calc(100% + 32px));}#sheet.on{transform:translateX(0);}}
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<video id="vid" playsinline autoplay muted></video>
+<div id="flash"></div>
+
+<div id="hud">
+  <div><p class="name">Litho</p><p class="sub" id="hSub">72 contours · relief terrain</p></div>
+  <span id="recDot"><i></i><span id="recTime">0:00</span></span>
+</div>
+
+<div id="deck">
+  <button class="tab" id="bSetup">Relief</button>
+  <button id="bShot" aria-label="Save a still image"></button>
+  <button id="bRec" aria-label="Start or stop video recording"></button>
+</div>
+
+<div id="scrim"></div>
+<div id="sheet">
+  <h2>Litho</h2>
+  <p class="big">A living topographic camera</p>
+
+  <div class="field">
+    <label>Terrain</label>
+    <div class="seg" id="segMode">
+      <button class="b on" data-v="0">Relief</button>
+      <button class="b" data-v="1">Terraces</button>
+      <button class="b" data-v="2">Fault</button>
+      <button class="b" data-v="3">Current</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>Material</label>
+    <div class="seg" id="segPalette">
+      <button class="b on" data-v="0">Mineral</button>
+      <button class="b" data-v="1">Atlas</button>
+      <button class="b" data-v="2">Magma</button>
+      <button class="b" data-v="3">Cyan</button>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="field"><label>Contours <b id="vContours">72</b></label><input type="range" id="sContours" min="18" max="180" value="72"></div>
+    <div class="field"><label>Relief <b id="vRelief">76</b></label><input type="range" id="sRelief" min="0" max="100" value="76"></div>
+    <div class="field"><label>Bands <b id="vBands">10</b></label><input type="range" id="sBands" min="2" max="24" value="10"></div>
+    <div class="field"><label>Edges <b id="vEdge">64</b></label><input type="range" id="sEdge" min="0" max="100" value="64"></div>
+    <div class="field"><label>Flow <b id="vFlow">32</b></label><input type="range" id="sFlow" min="0" max="100" value="32"></div>
+    <div class="field"><label>Grain <b id="vGrain">16</b></label><input type="range" id="sGrain" min="0" max="100" value="16"></div>
+    <div class="field"><label>Glow <b id="vGlow">24</b></label><input type="range" id="sGlow" min="0" max="100" value="24"></div>
+  </div>
+
+  <div class="field"><div class="row">
+    <button class="b" id="bQuake">Quake</button>
+    <button class="b" id="bRelight">Relight</button>
+    <button class="b" id="bInvert">Invert</button>
+    <button class="b" id="bHold">Hold</button>
+    <button class="b" id="bFlip">Flip</button>
+    <button class="b on" id="bFmt">MP4</button>
+    <button class="b" id="bAspect">Reel 9:16</button>
+    <button class="b" id="bClose">Close</button>
+  </div></div>
+  <p class="note">Drag to move the virtual light across the surface. A tap sends a seismic ring through the contours. Relief keeps the image sculptural, Terraces makes broad colour steps, Fault breaks the terrain, and Current lets the strata flow.</p>
+  <div class="credit">
+    <a href="./">← All cameras</a>
+    <a href="LICENSE">CC BY-NC 4.0</a>
+    <span>Nothing leaves your device</span>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="gate">
+  <div class="card">
+    <div class="mark"></div>
+    <h1>Litho</h1>
+    <p>Your camera becomes a shifting landscape of contour lines, coloured strata and false elevation. Move the light with your finger. Touch the terrain to make it quake.</p>
+    <button class="b" id="bEnter">Open camera</button>
+    <div id="err"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var stage=document.getElementById('stage'),vid=document.getElementById('vid'),gate=document.getElementById('gate'),errEl=document.getElementById('err'),sheet=document.getElementById('sheet'),scrim=document.getElementById('scrim');
+  var toastEl=document.getElementById('toast'),flash=document.getElementById('flash'),hSub=document.getElementById('hSub'),recDot=document.getElementById('recDot'),recTime=document.getElementById('recTime');
+  var gl=stage.getContext('webgl',{alpha:false,antialias:false,preserveDrawingBuffer:true,premultipliedAlpha:false});
+  var stream=null,facing='user',ready=false,held=false,holdingFrame=false,recording=false,recorder=null,chunks=[],recStart=0,recFmt='mp4',recAspect='reel',recMime='';
+  var W=1,H=1,dpr=1,tex=null,program=null,buf=null,raf=window.requestAnimationFrame||function(f){return setTimeout(function(){f(Date.now());},16);};
+  var clock=function(){return window.performance&&performance.now?performance.now():Date.now();};
+  var opt={mode:0,palette:0,contours:72,relief:76,bands:10,edge:64,flow:32,grain:16,glow:24,invert:0};
+  var light={x:.72,y:.24},target={x:.72,y:.24},pulseCentre={x:.5,y:.55},pointerDown=false,pulseAt=-9999;
+  var uniforms={};
+
+  function clamp(v,a,b){return v<a?a:v>b?b:v;}
+  function lerp(a,b,t){return a+(b-a)*t;}
+  function pad(n){return n<10?'0'+n:''+n;}
+  function toast(s){toastEl.textContent=s;toastEl.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(function(){toastEl.classList.remove('on');},1600);}
+  function fail(s){errEl.textContent=s;errEl.style.display='block';}
+
+  if(!gl){fail('WebGL is unavailable in this browser. Try Safari or Chrome with hardware acceleration enabled.');}
+
+  function compile(type,src){var sh=gl.createShader(type);gl.shaderSource(sh,src);gl.compileShader(sh);if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(sh)||'Shader compile failed');return sh;}
+  function initGL(){
+    if(!gl)return;
+    var ext=gl.getExtension('OES_standard_derivatives');
+    var vs='attribute vec2 aPos;varying vec2 vUv;void main(){vUv=aPos*.5+.5;gl_Position=vec4(aPos,0.0,1.0);}';
+    var fs=(ext?'#extension GL_OES_standard_derivatives : enable\n':'')+
+    'precision highp float;varying vec2 vUv;uniform sampler2D uTex;uniform vec2 uResolution;uniform vec2 uCrop;uniform vec2 uTexel;uniform vec2 uLight;uniform vec2 uPulseCentre;uniform float uTime;uniform float uMode;uniform float uPalette;uniform float uContours;uniform float uRelief;uniform float uBands;uniform float uEdge;uniform float uFlow;uniform float uGrain;uniform float uGlow;uniform float uInvert;uniform float uMirror;uniform float uPulse;'+
+    'float lum(vec3 c){return dot(c,vec3(.2126,.7152,.0722));}'+
+    'float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123);}'+
+    'vec3 mineral(float x){if(x<.25)return mix(vec3(.025,.09,.085),vec3(.10,.38,.34),x*4.0);if(x<.5)return mix(vec3(.10,.38,.34),vec3(.32,.72,.61),(x-.25)*4.0);if(x<.75)return mix(vec3(.32,.72,.61),vec3(.90,.72,.34),(x-.5)*4.0);return mix(vec3(.90,.72,.34),vec3(.78,.25,.18),(x-.75)*4.0);}'+
+    'vec3 atlas(float x){if(x<.33)return mix(vec3(.18,.23,.19),vec3(.46,.55,.42),x*3.03);if(x<.66)return mix(vec3(.46,.55,.42),vec3(.78,.70,.48),(x-.33)*3.03);return mix(vec3(.78,.70,.48),vec3(.92,.87,.74),(x-.66)*2.94);}'+
+    'vec3 magma(float x){if(x<.3)return mix(vec3(.025,.005,.015),vec3(.28,.018,.03),x/0.3);if(x<.62)return mix(vec3(.28,.018,.03),vec3(.94,.20,.035),(x-.3)/.32);if(x<.84)return mix(vec3(.94,.20,.035),vec3(1.0,.72,.08),(x-.62)/.22);return mix(vec3(1.0,.72,.08),vec3(1.0,.96,.72),(x-.84)/.16);}'+
+    'vec3 cyan(float x){if(x<.35)return mix(vec3(.004,.018,.07),vec3(.02,.20,.42),x/.35);if(x<.72)return mix(vec3(.02,.20,.42),vec3(.08,.67,.78),(x-.35)/.37);return mix(vec3(.08,.67,.78),vec3(.78,.98,1.0),(x-.72)/.28);}'+
+    'vec3 getPalette(float x){x=clamp(x,0.0,1.0);if(uPalette<.5)return mineral(x);if(uPalette<1.5)return atlas(x);if(uPalette<2.5)return magma(x);return cyan(x);}'+
+    'void main(){'+
+      'float aspect=uResolution.x/uResolution.y;vec2 uv=vUv;vec2 p=(uv-.5)*vec2(aspect,1.0);float flow=uFlow;'+
+      'float w1=sin(p.y*15.0+p.x*5.0-uTime*(.18+flow*.7));float w2=sin(p.x*19.0-p.y*7.0+uTime*(.12+flow*.5));'+
+      'if(uMode>1.5&&uMode<2.5){float fault=sign(sin(p.y*8.0+sin(p.x*12.0)*1.8));uv.x+=fault*.018*flow;uv.y+=sin(p.x*11.0)*.008*flow;}'+
+      'else if(uMode>2.5){uv+=vec2(w1,w2)*.014*flow;float a=atan(p.y,p.x);uv+=vec2(cos(a+uTime*.18),sin(a-uTime*.16))*.008*flow;}'+
+      'vec2 tuv=(uv-.5)*uCrop+.5;if(uMirror>.5)tuv.x=1.0-tuv.x;tuv=clamp(tuv,0.0,1.0);'+
+      'vec2 tx=uTexel;vec3 cam=texture2D(uTex,tuv).rgb;float h=lum(cam);float hL=lum(texture2D(uTex,clamp(tuv-vec2(tx.x,0.0),0.0,1.0)).rgb);float hR=lum(texture2D(uTex,clamp(tuv+vec2(tx.x,0.0),0.0,1.0)).rgb);float hU=lum(texture2D(uTex,clamp(tuv+vec2(0.0,tx.y),0.0,1.0)).rgb);float hD=lum(texture2D(uTex,clamp(tuv-vec2(0.0,tx.y),0.0,1.0)).rgb);'+
+      'h=pow(clamp(h,0.0,1.0),.88);hL=pow(hL,.88);hR=pow(hR,.88);hU=pow(hU,.88);hD=pow(hD,.88);if(uInvert>.5){h=1.0-h;hL=1.0-hL;hR=1.0-hR;hU=1.0-hU;hD=1.0-hD;}'+
+      'float bandCount=max(2.0,uBands);float terr=floor(h*bandCount)/max(1.0,bandCount-1.0);float surface=h;if(uMode>.5&&uMode<1.5)surface=mix(h,terr,.82);'+
+      'float fissure=0.0;if(uMode>1.5&&uMode<2.5){float f=abs(sin(p.x*9.0+p.y*3.0+sin(p.y*13.0)*1.7));fissure=1.0-smoothstep(.035,.15,f);surface=clamp(surface+(w1*.07+w2*.035)*flow+fissure*.11,0.0,1.0);}'+
+      'float pulseRing=0.0;vec2 rp=(vUv-uPulseCentre)*vec2(aspect,1.0);float rr=length(rp);if(uPulse>=0.0&&uPulse<=1.0)pulseRing=exp(-pow((rr-uPulse*1.15)/.035,2.0));'+
+      'float contourPhase=surface*uContours+(w1+w2*.55)*flow*1.25+pulseRing*4.5;float ff=fract(contourPhase);float dist=min(ff,1.0-ff);'+
+      (ext?'float aa=max(.0025,fwidth(contourPhase)*.72);':'float aa=.018;')+
+      'float line=1.0-smoothstep(.025,.025+aa,dist);float wide=1.0-smoothstep(.10,.10+aa*1.35,dist);'+
+      'vec2 grad=vec2(hL-hR,hD-hU);vec3 n=normalize(vec3(grad*uRelief*8.5,.34));vec2 ld=(uLight-vUv)*vec2(aspect,1.0);vec3 light=normalize(vec3(ld*1.45,.72));float diff=.38+.72*max(0.0,dot(n,light));float spec=pow(max(0.0,dot(reflect(-light,n),vec3(0.0,0.0,1.0))),20.0)*uRelief;'+
+      'float colourHeight=mix(h,terr,.52);if(uMode>2.5)colourHeight=fract(colourHeight+.08*sin(uTime*.35+p.x*5.0));vec3 col=getPalette(colourHeight);col*=diff;col+=spec*vec3(1.0,.88,.65)*.55;'+
+      'float camEdge=clamp(length(grad)*7.5*uEdge,0.0,1.0);vec3 ink=uPalette<.5?vec3(.018,.04,.035):(uPalette<1.5?vec3(.09,.075,.055):(uPalette<2.5?vec3(1.0,.77,.18):vec3(.50,.95,1.0)));'+
+      'if(uPalette<1.5)col=mix(col,ink,clamp(line*(.48+uEdge*.48)+camEdge*.30,0.0,.92));else col+=ink*(line*(.38+uEdge*.62)+wide*uGlow*.24+camEdge*.20);'+
+      'if(uPalette>1.5)col+=ink*wide*uGlow*.34;if(uPalette<1.5)col-=wide*uGlow*.07;col+=pulseRing*ink*(.28+.9*uGlow);'+
+      'if(uMode>1.5&&uMode<2.5)col=mix(col,ink,fissure*(.42+.45*uEdge));'+
+      'float grain=(hash(gl_FragCoord.xy+floor(uTime*19.0))-.5)*uGrain*.12;col+=grain;float vig=1.0-smoothstep(.48,1.0,length(p));col*=.80+.20*vig;gl_FragColor=vec4(clamp(col,0.0,1.0),1.0);'+
+    '}';
+    try{
+      program=gl.createProgram();gl.attachShader(program,compile(gl.VERTEX_SHADER,vs));gl.attachShader(program,compile(gl.FRAGMENT_SHADER,fs));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(program)||'Shader link failed');
+      gl.useProgram(program);buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
+      var aPos=gl.getAttribLocation(program,'aPos');gl.enableVertexAttribArray(aPos);gl.vertexAttribPointer(aPos,2,gl.FLOAT,false,0,0);
+      ['uResolution','uCrop','uTexel','uLight','uPulseCentre','uTime','uMode','uPalette','uContours','uRelief','uBands','uEdge','uFlow','uGrain','uGlow','uInvert','uMirror','uPulse'].forEach(function(n){uniforms[n]=gl.getUniformLocation(program,n);});
+      tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([105,112,102,255]));
+    }catch(e){fail('The terrain shader could not start: '+e.message);gl=null;}
+  }
+  initGL();
+
+  function resize(){W=Math.max(1,innerWidth);H=Math.max(1,innerHeight);dpr=Math.min(2,Math.max(1,devicePixelRatio||1));var pw=Math.round(W*dpr),ph=Math.round(H*dpr);if(stage.width!==pw||stage.height!==ph){stage.width=pw;stage.height=ph;if(gl)gl.viewport(0,0,pw,ph);}}
+  addEventListener('resize',resize,false);resize();
+
+  function stopStream(){if(stream){stream.getTracks().forEach(function(t){t.stop();});}stream=null;}
+  function startCamera(){
+    if(!gl)return;if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){fail('This browser cannot open a camera. Use Safari or Chrome over HTTPS.');return;}
+    stopStream();ready=false;holdingFrame=false;
+    navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:1920},height:{ideal:1080}},audio:false}).then(function(s){stream=s;vid.srcObject=s;return vid.play();}).then(function(){ready=true;gate.style.display='none';toast('Drag to move the light · tap to quake');}).catch(function(e){var msg=e&&e.name==='NotAllowedError'?'Camera permission was denied.':e&&e.name==='NotFoundError'?'No camera was found.':'The camera could not start. GitHub Pages must use HTTPS.';fail(msg);});
+  }
+
+  function updateTexture(){if(!ready||held||vid.readyState<2||!vid.videoWidth)return;gl.bindTexture(gl.TEXTURE_2D,tex);try{gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,vid);holdingFrame=true;}catch(e){}}
+  function render(t){
+    raf(render);if(!gl||!program)return;light.x=lerp(light.x,target.x,.12);light.y=lerp(light.y,target.y,.12);updateTexture();if(!holdingFrame)return;
+    var targetAspect=stage.width/stage.height,sourceAspect=vid.videoWidth&&vid.videoHeight?vid.videoWidth/vid.videoHeight:targetAspect,cx=1,cy=1;if(sourceAspect>targetAspect)cx=targetAspect/sourceAspect;else cy=sourceAspect/targetAspect;
+    var pulseAge=(t-pulseAt)/1350,pulse=pulseAge>=0&&pulseAge<1?pulseAge:-2;
+    gl.useProgram(program);gl.uniform2f(uniforms.uResolution,stage.width,stage.height);gl.uniform2f(uniforms.uCrop,cx,cy);gl.uniform2f(uniforms.uTexel,1/Math.max(1,vid.videoWidth||1280),1/Math.max(1,vid.videoHeight||720));gl.uniform2f(uniforms.uLight,light.x,1-light.y);gl.uniform2f(uniforms.uPulseCentre,pulseCentre.x,1-pulseCentre.y);gl.uniform1f(uniforms.uTime,t*.001);gl.uniform1f(uniforms.uMode,opt.mode);gl.uniform1f(uniforms.uPalette,opt.palette);gl.uniform1f(uniforms.uContours,opt.contours);gl.uniform1f(uniforms.uRelief,opt.relief/100);gl.uniform1f(uniforms.uBands,opt.bands);gl.uniform1f(uniforms.uEdge,opt.edge/100);gl.uniform1f(uniforms.uFlow,opt.flow/100);gl.uniform1f(uniforms.uGrain,opt.grain/100);gl.uniform1f(uniforms.uGlow,opt.glow/100);gl.uniform1f(uniforms.uInvert,opt.invert);gl.uniform1f(uniforms.uMirror,facing==='user'?1:0);gl.uniform1f(uniforms.uPulse,pulse);gl.drawArrays(gl.TRIANGLES,0,6);
+    if(recording){paintRecording();tickTime();}
+  }
+  raf(render);
+
+  function eventPos(e){var r=stage.getBoundingClientRect(),p=e.touches?e.touches[0]:e;return{x:clamp((p.clientX-r.left)/r.width,0,1),y:clamp((p.clientY-r.top)/r.height,0,1)};}
+  function press(e){pointerDown=true;var p=eventPos(e);target.x=p.x;target.y=p.y;pulseCentre.x=p.x;pulseCentre.y=p.y;pulseAt=clock();if(e.preventDefault)e.preventDefault();}
+  function drag(e){if(!pointerDown)return;var p=eventPos(e);target.x=p.x;target.y=p.y;if(e.preventDefault)e.preventDefault();}
+  function release(){pointerDown=false;}
+  stage.addEventListener('touchstart',press,{passive:false});stage.addEventListener('touchmove',drag,{passive:false});stage.addEventListener('touchend',release,false);stage.addEventListener('touchcancel',release,false);stage.addEventListener('mousedown',press,false);addEventListener('mousemove',drag,false);addEventListener('mouseup',release,false);
+
+  function flashNow(){flash.style.transition='none';flash.style.opacity='.82';setTimeout(function(){flash.style.transition='opacity .45s';flash.style.opacity='0';},60);}
+  function saveBlob(blob,name){var url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);},15000);}
+  document.getElementById('bShot').addEventListener('click',function(){flashNow();stage.toBlob(function(b){if(b)saveBlob(b,'litho-'+Date.now()+'.png');else toast('Could not save image');},'image/png');});
+
+  var recCan=document.createElement('canvas'),recCtx=recCan.getContext('2d');
+  function setupRecCanvas(){if(recAspect==='reel'){recCan.width=720;recCan.height=1280;}else if(recAspect==='square'){recCan.width=960;recCan.height=960;}else{var k=Math.min(1,1280/Math.max(stage.width,stage.height));recCan.width=Math.max(2,Math.round(stage.width*k/2)*2);recCan.height=Math.max(2,Math.round(stage.height*k/2)*2);}}
+  function coverCopy(from,to,x){var sw=from.width,sh=from.height,dw=to.width,dh=to.height,sr=sw/sh,dr=dw/dh,sx=0,sy=0,sww=sw,shh=sh;if(sr>dr){sww=sh*dr;sx=(sw-sww)/2;}else{shh=sw/dr;sy=(sh-shh)/2;}x.drawImage(from,sx,sy,sww,shh,0,0,dw,dh);}
+  function paintRecording(){recCtx.setTransform(1,0,0,1,0,0);recCtx.fillStyle='#07100F';recCtx.fillRect(0,0,recCan.width,recCan.height);coverCopy(stage,recCan,recCtx);}
+  function chooseMime(){if(!window.MediaRecorder||!MediaRecorder.isTypeSupported)return'';var mp4=['video/mp4;codecs=h264,aac','video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4'],webm=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'],list=recFmt==='mp4'?mp4.concat(webm):webm.concat(mp4);for(var i=0;i<list.length;i++)if(MediaRecorder.isTypeSupported(list[i]))return list[i];return'';}
+  function tickTime(){var s=Math.floor((clock()-recStart)/1000);recTime.textContent=Math.floor(s/60)+':'+pad(s%60);}
+  function stopRecording(){if(recorder&&recording){recording=false;document.getElementById('bRec').classList.remove('on');recDot.classList.remove('on');try{recorder.stop();}catch(e){}}}
+  function startRecording(){if(!stage.captureStream||!window.MediaRecorder){toast('This browser cannot record canvas video');return;}setupRecCanvas();paintRecording();var out=recCan.captureStream(30);recMime=chooseMime();chunks=[];try{recorder=recMime?new MediaRecorder(out,{mimeType:recMime,videoBitsPerSecond:12000000}):new MediaRecorder(out);}catch(e){try{recorder=new MediaRecorder(out);}catch(e2){toast('Recording could not start');return;}}recorder.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data);};recorder.onstop=function(){var type=recorder.mimeType||recMime||'video/webm',ext=type.indexOf('mp4')>=0?'mp4':'webm';saveBlob(new Blob(chunks,{type:type}),'litho-'+Date.now()+'.'+ext);chunks=[];};recorder.start(250);recording=true;recStart=clock();document.getElementById('bRec').classList.add('on');recDot.classList.add('on');tickTime();if(recFmt==='mp4'&&recMime.indexOf('mp4')<0)toast('MP4 unsupported here — recording WebM');}
+  document.getElementById('bRec').addEventListener('click',function(){recording?stopRecording():startRecording();});
+
+  function openSheet(){sheet.classList.add('on');scrim.classList.add('on');document.getElementById('bSetup').classList.add('on');}
+  function closeSheet(){sheet.classList.remove('on');scrim.classList.remove('on');document.getElementById('bSetup').classList.remove('on');}
+  document.getElementById('bSetup').addEventListener('click',function(){sheet.classList.contains('on')?closeSheet():openSheet();});document.getElementById('bClose').addEventListener('click',closeSheet);
+
+  var modeNames=['Relief','Terraces','Fault','Current'];
+  function seg(id,key){var root=document.getElementById(id),bs=root.querySelectorAll('button');for(var i=0;i<bs.length;i++)bs[i].addEventListener('click',function(){for(var j=0;j<bs.length;j++)bs[j].classList.remove('on');this.classList.add('on');opt[key]=parseInt(this.getAttribute('data-v'),10);readOut();});}
+  seg('segMode','mode');seg('segPalette','palette');
+  function slider(id,key,out){var el=document.getElementById(id),o=document.getElementById(out);el.addEventListener('input',function(){opt[key]=parseInt(this.value,10);o.textContent=this.value;readOut();});}
+  slider('sContours','contours','vContours');slider('sRelief','relief','vRelief');slider('sBands','bands','vBands');slider('sEdge','edge','vEdge');slider('sFlow','flow','vFlow');slider('sGrain','grain','vGrain');slider('sGlow','glow','vGlow');
+  document.getElementById('bQuake').addEventListener('click',function(){pulseCentre.x=.5;pulseCentre.y=.55;pulseAt=clock();toast('Seismic pulse');});
+  document.getElementById('bRelight').addEventListener('click',function(){target.x=.72;target.y=.24;toast('Light restored');});
+  document.getElementById('bInvert').addEventListener('click',function(){opt.invert=opt.invert?0:1;this.classList.toggle('on',!!opt.invert);toast(opt.invert?'Valleys raised':'Elevation normal');});
+  document.getElementById('bHold').addEventListener('click',function(){held=!held;this.classList.toggle('on',held);this.textContent=held?'Held':'Hold';toast(held?'Frame held — terrain still moves':'Camera released');});
+  document.getElementById('bFlip').addEventListener('click',function(){if(recording)stopRecording();facing=facing==='user'?'environment':'user';ready=false;holdingFrame=false;startCamera();toast(facing==='user'?'Front camera':'Rear camera');});
+  document.getElementById('bFmt').addEventListener('click',function(){recFmt=recFmt==='mp4'?'webm':'mp4';this.textContent=recFmt.toUpperCase();this.classList.toggle('on',recFmt==='mp4');});
+  document.getElementById('bAspect').addEventListener('click',function(){if(recAspect==='reel'){recAspect='square';this.textContent='Square 1:1';}else if(recAspect==='square'){recAspect='screen';this.textContent='Screen';}else{recAspect='reel';this.textContent='Reel 9:16';}});
+  function readOut(){document.getElementById('bSetup').textContent=modeNames[opt.mode];hSub.textContent=opt.contours+' contours · '+modeNames[opt.mode].toLowerCase()+' terrain';}
+  document.getElementById('bEnter').addEventListener('click',function(){errEl.style.display='none';startCamera();});
+  addEventListener('pagehide',function(){if(recording)stopRecording();stopStream();});readOut();
+})();
+</script>
+</body>
+</html>
